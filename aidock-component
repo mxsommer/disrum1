@@ -1,0 +1,97 @@
+import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Mic } from 'lucide-react';
+
+export default function AiDock() {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState("");
+  const [response, setResponse] = useState("");
+  const [listening, setListening] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const context = document.title + " - " + window.location.pathname;
+    console.log("Setting context input:", context);
+    setInput((prev) => prev || `Context: ${context}\n`);
+  }, [open]);
+
+  const handleQuery = async () => {
+    setLoading(true);
+    console.log("Sending query to AI endpoint:", input);
+    try {
+      const res = await fetch("https://api.bysommer.net/ai/mentor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: input })
+      });
+      const data = await res.json();
+      console.log("AI response received:", data);
+      setResponse(data.response);
+    } catch (err) {
+      console.error("Error fetching from AI service:", err);
+      setResponse("Error reaching AI service.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVoiceInput = () => {
+    console.log("Starting voice recognition...");
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setListening(true);
+    recognition.start();
+
+    recognition.onresult = (event) => {
+      const speech = event.results[0][0].transcript;
+      console.log("Voice input result:", speech);
+      setInput((prev) => prev + " " + speech);
+      setListening(false);
+    };
+
+    recognition.onerror = (err) => {
+      console.error("Voice recognition error:", err);
+      setListening(false);
+    };
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      <Button onClick={() => setOpen(true)} className="rounded-2xl shadow-lg px-4 py-2 bg-red-500 text-white">
+        Ask Mentor
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="p-4 max-w-xl">
+          <DialogHeader>
+            <DialogTitle>AI Mentor</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={input}
+            onChange={(e) => {
+              console.log("User input changed:", e.target.value);
+              setInput(e.target.value);
+            }}
+            placeholder="Ask a question, get inspired..."
+            className="mb-2"
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleQuery} disabled={loading} className="w-full">
+              {loading ? <Loader2 className="animate-spin" /> : "Submit"}
+            </Button>
+            <Button onClick={handleVoiceInput} disabled={listening} className="bg-gray-200 text-black">
+              <Mic className={listening ? "animate-pulse" : ""} />
+            </Button>
+          </div>
+          {response && <div className="mt-4 whitespace-pre-line text-sm text-gray-700">{response}</div>}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
